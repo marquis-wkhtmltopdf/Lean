@@ -54,14 +54,52 @@ namespace QuantConnect.Tests.Report
         [TestCase(1, 1)]
         public void ConvertsToPdfDestinationContainingSpaces(int converterExitCode, int expectedExitCode)
         {
+            var reportDirectory = Directory.CreateDirectory(Path.Combine(_directory, "my reports")).FullName;
+            var destination = Path.Combine(reportDirectory, "report.html");
+
+            var arguments = RunReport(destination, converterExitCode);
+
+            Assert.IsTrue(File.Exists(destination));
+            CollectionAssert.AreEqual(
+                new[] { "--server-args=-screen 0, 1600x1200x24+32", "wkhtmltopdf", destination, Path.Combine(reportDirectory, "report.pdf") },
+                arguments);
+            Assert.AreEqual(expectedExitCode, Environment.ExitCode);
+        }
+
+        [TestCase("my reports", "report.html", "report.pdf", "report")]
+        [TestCase("my reports", "report.HTML", "report.pdf", "report")]
+        [TestCase("my reports", "report", "report.pdf", "report")]
+        [TestCase("my.html reports", "report.html", "report.pdf", "report")]
+        [TestCase("my reports", "report.pdf", "report.pdf.pdf", "report.pdf")]
+        [TestCase("my reports", "report.PDF", "report.PDF.pdf", "report.PDF")]
+        public void WritesPdfBesideHtmlWithoutOverwritingIt(string directoryName, string fileName, string pdfFileName, string portfolioBaseName)
+        {
+            var reportDirectory = Directory.CreateDirectory(Path.Combine(_directory, directoryName)).FullName;
+            var destination = Path.Combine(reportDirectory, fileName);
+            var pdfDestination = Path.Combine(reportDirectory, pdfFileName);
+
+            var arguments = RunReport(destination, 0);
+
+            CollectionAssert.AreEqual(
+                new[] { "--server-args=-screen 0, 1600x1200x24+32", "wkhtmltopdf", destination, pdfDestination },
+                arguments);
+            StringAssert.DoesNotStartWith("%PDF-", File.ReadAllText(destination));
+            StringAssert.StartsWith("%PDF-", File.ReadAllText(pdfDestination));
+            FileAssert.Exists(Path.Combine(reportDirectory, portfolioBaseName + "-backtesting-portfolio.json"));
+            Assert.AreEqual(0, Environment.ExitCode);
+        }
+
+        /// <summary>
+        /// Runs the launcher with a stand-in xvfb-run that records its arguments and writes a PDF to the last
+        /// </summary>
+        private string[] RunReport(string destination, int converterExitCode)
+        {
             var argumentsFile = Path.Combine(_directory, "arguments.txt");
             var converter = Path.Combine(_directory, "xvfb-run");
-            File.WriteAllText(converter, $"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{argumentsFile}'\nexit {converterExitCode}\n");
+            File.WriteAllText(converter, $"#!/bin/sh\nprintf '%s\\n' \"$@\" > '{argumentsFile}'\nfor output; do :; done\nprintf '%%PDF-1.4\\n' > \"$output\"\nexit {converterExitCode}\n");
             File.SetUnixFileMode(converter, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             Environment.SetEnvironmentVariable("PATH", $"{_directory}{Path.PathSeparator}{_path}");
 
-            var reportDirectory = Directory.CreateDirectory(Path.Combine(_directory, "my reports")).FullName;
-            var destination = Path.Combine(reportDirectory, "report.html");
             Config.Set("backtest-data-source-file", Path.Combine("TestData", "test_report_data.json"));
             Config.Set("live-data-source-file", "");
             Config.Set("report-destination", destination);
@@ -72,11 +110,7 @@ namespace QuantConnect.Tests.Report
                 .GetMethod("Main", BindingFlags.Static | BindingFlags.NonPublic);
             main.Invoke(null, new object[] { Array.Empty<string>() });
 
-            Assert.IsTrue(File.Exists(destination));
-            CollectionAssert.AreEqual(
-                new[] { "--server-args=-screen 0, 1600x1200x24+32", "wkhtmltopdf", destination, Path.Combine(reportDirectory, "report.pdf") },
-                File.ReadAllLines(argumentsFile));
-            Assert.AreEqual(expectedExitCode, Environment.ExitCode);
+            return File.ReadAllLines(argumentsFile);
         }
     }
 }

@@ -135,7 +135,7 @@ namespace QuantConnect.Report
                     {
                         Log.Trace("QuantConnect.Report.Main(): Starting conversion to PDF");
                         // Ensure wkhtmltopdf and xvfb are installed and accessible from the $PATH
-                        var pdfDestination = destination.Replace(".html", ".pdf");
+                        var pdfDestination = GetPdfDestination(destination);
                         Process process = new();
                         process.StartInfo.FileName = "xvfb-run";
                         process.StartInfo.ArgumentList.Add("--server-args=-screen 0, 1600x1200x24+32");
@@ -191,6 +191,19 @@ namespace QuantConnect.Report
             {
                 Console.ReadKey();
             }
+        }
+
+        /// <summary>
+        /// The HTML report's path with a .pdf extension, never the HTML report's own path
+        /// </summary>
+        private static string GetPdfDestination(string htmlDestination)
+        {
+            var pdfDestination = Path.ChangeExtension(htmlDestination, ".pdf");
+            if (string.Equals(pdfDestination, htmlDestination, StringComparison.OrdinalIgnoreCase))
+            {
+                pdfDestination = htmlDestination + ".pdf";
+            }
+            return pdfDestination;
         }
     }
 }

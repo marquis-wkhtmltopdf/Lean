@@ -88,7 +88,7 @@ namespace QuantConnect.Report
                         .OrderBy(x => x.Time)
                         .ToList();
 
-                    var outputFile = destination.Replace(".html", string.Empty) + "-backtesting-portfolio.json";
+                    var outputFile = GetPortfolioBasePath(destination) + "-backtesting-portfolio.json";
                     Log.Trace($"Report.Report(): Writing backtest point-in-time portfolios to JSON file: {outputFile}");
                     var backtestPortfolioOutput = JsonConvert.SerializeObject(dailyBacktestPortfolioInTime);
                     File.WriteAllText(outputFile, backtestPortfolioOutput);
@@ -102,7 +102,7 @@ namespace QuantConnect.Report
                         .OrderBy(x => x.Time)
                         .ToList();
 
-                    var outputFile = destination.Replace(".html", string.Empty) + "-live-portfolio.json";
+                    var outputFile = GetPortfolioBasePath(destination) + "-live-portfolio.json";
                     Log.Trace($"Report.Report(): Writing live point-in-time portfolios to JSON file: {outputFile}");
                     var livePortfolioOutput = JsonConvert.SerializeObject(dailyLivePortfolioInTime);
                     File.WriteAllText(outputFile, livePortfolioOutput);
@@ -201,6 +201,16 @@ namespace QuantConnect.Report
             var match = regex.Match(input);
             var regexWithinInput = match.Success ? match.Groups[2].Value : null;
             return regexWithinInput;
+        }
+
+        /// <summary>
+        /// The destination without its .html extension, in any case; other paths are kept as they are
+        /// </summary>
+        private static string GetPortfolioBasePath(string destination)
+        {
+            return string.Equals(Path.GetExtension(destination), ".html", StringComparison.OrdinalIgnoreCase)
+                ? Path.ChangeExtension(destination, null)
+                : destination;
         }
     }
 }
